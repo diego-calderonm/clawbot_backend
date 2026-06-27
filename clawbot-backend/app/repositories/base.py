@@ -20,10 +20,23 @@ class ReportRepository(ABC):
 
     @abstractmethod
     async def list_all(self) -> list[dict]:
-        """Devuelve todos los reportes almacenados (uso temporal/desarrollo)."""
+        """Devuelve todos los reportes almacenados."""
         raise NotImplementedError
 
     @abstractmethod
     async def get_by_id(self, report_id: str) -> dict | None:
         """Devuelve un reporte por su identificador, o None si no existe."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def list_pending(self) -> list[dict]:
+        """Devuelve solo los reportes que APEX todavía no procesó."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def mark_as_processed(self, report_id: str) -> bool:
+        """
+        Marca un reporte como procesado por APEX.
+        Devuelve True si existía y se marcó, False si no existía.
+        """
         raise NotImplementedError

@@ -1,13 +1,11 @@
 """
 Endpoints relacionados con la recepción y consulta de reportes de seguridad.
 
-POST /api/reports      -> usado por el Report Sender para enviar un reporte.
-GET  /api/reports       -> listado temporal (solo desarrollo, en memoria).
-GET  /api/reports/{id}  -> detalle temporal (solo desarrollo, en memoria).
-
-Los endpoints GET serán reemplazados/ampliados en la etapa final del
-proyecto, cuando consulten Oracle Database en lugar del repositorio en
-memoria, pensados para ser consumidos por Oracle APEX.
+POST /api/reports                    -> Report Sender envía un reporte.
+GET  /api/reports                    -> Lista todos los reportes en memoria.
+GET  /api/reports/pending            -> Lista solo los no procesados por APEX.
+GET  /api/reports/{id}               -> Detalle de un reporte.
+POST /api/reports/{id}/acknowledge   -> APEX marca un reporte como procesado.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -38,10 +36,8 @@ async def receive_report(
 ) -> ReportAck:
     """
     Recibe y valida un reporte JSON enviado por el Report Sender.
-
-    La validación del esquema la realiza FastAPI/Pydantic automáticamente
-    a partir del modelo `SecurityReport`. Si el JSON no cumple el formato,
-    se responde 422 con el detalle de los campos inválidos.
+    Si el JSON no cumple el formato, se responde 422 con el detalle
+    de los campos inválidos.
     """
     result = await service.process_report(report)
     return ReportAck(**result)
@@ -50,16 +46,50 @@ async def receive_report(
 @router.get(
     "",
     dependencies=[Depends(verify_api_key)],
-    summary="[Temporal] Lista los reportes almacenados en memoria",
+    summary="Lista todos los reportes almacenados",
 )
 async def list_reports(service: ReportService = Depends(get_report_service)) -> list[dict]:
     return await service.list_reports()
 
 
 @router.get(
+    "/pending",
+    dependencies=[Depends(verify_api_key)],
+    summary="Lista los reportes pendientes de procesar por APEX",
+)
+async def list_pending(service: ReportService = Depends(get_report_service)) -> list[dict]:
+    """
+    Devuelve únicamente los reportes que todavía no fueron procesados
+    por Oracle APEX. APEX debe llamar este endpoint en su Automation,
+    procesar cada reporte e inmediatamente llamar /acknowledge para
+    marcarlo como procesado y evitar duplicados.
+    """
+    return await service.list_pending()
+
+
+@router.post(
+    "/{report_id}/acknowledge",
+    dependencies=[Depends(verify_api_key)],
+    summary="APEX marca un reporte como ya procesado",
+)
+async def acknowledge_report(
+    report_id: str,
+    service: ReportService = Depends(get_report_service),
+) -> dict:
+    """
+    APEX llama este endpoint después de insertar correctamente un reporte
+    en Oracle. Evita que el mismo reporte sea procesado dos veces.
+    """
+    success = await service.acknowledge(report_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado.")
+    return {"report_id": report_id, "acknowledged": True}
+
+
+@router.get(
     "/{report_id}",
     dependencies=[Depends(verify_api_key)],
-    summary="[Temporal] Obtiene el detalle de un reporte por ID",
+    summary="Obtiene el detalle de un reporte por ID",
 )
 async def get_report(
     report_id: str,

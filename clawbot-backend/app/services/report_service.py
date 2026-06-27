@@ -25,3 +25,14 @@ class ReportService:
 
     async def get_report(self, report_id: str) -> dict | None:
         return await self._repository.get_by_id(report_id)
+
+    async def list_pending(self) -> list[dict]:
+        """Devuelve solo los reportes que APEX todavía no procesó."""
+        return await self._repository.list_pending()
+
+    async def acknowledge(self, report_id: str) -> bool:
+        """
+        Marca un reporte como procesado por APEX.
+        Devuelve False si el reporte no existe.
+        """
+        return await self._repository.mark_as_processed(report_id)

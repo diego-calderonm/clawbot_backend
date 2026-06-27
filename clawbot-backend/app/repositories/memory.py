@@ -24,6 +24,8 @@ class InMemoryReportRepository(ReportRepository):
         self._reports[report_id] = {
             "report_id": report_id,
             "received_at": datetime.now(timezone.utc).isoformat(),
+            "processed": False,
+            "processed_at": None,
             "data": report.model_dump(mode="json"),
         }
         return report_id
@@ -33,3 +35,13 @@ class InMemoryReportRepository(ReportRepository):
 
     async def get_by_id(self, report_id: str) -> dict | None:
         return self._reports.get(report_id)
+
+    async def list_pending(self) -> list[dict]:
+        return [r for r in self._reports.values() if not r["processed"]]
+
+    async def mark_as_processed(self, report_id: str) -> bool:
+        if report_id not in self._reports:
+            return False
+        self._reports[report_id]["processed"] = True
+        self._reports[report_id]["processed_at"] = datetime.now(timezone.utc).isoformat()
+        return True
